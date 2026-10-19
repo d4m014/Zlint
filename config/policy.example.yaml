@@ -1,0 +1,34 @@
+# Product defaults from the concept doc.
+# Amounts are zatoshis. 1 ZEC = 100_000_000 zatoshis.
+# The demo file (policy.demo.yaml) tightens the daily cap and the reject threshold.
+
+version: 1
+
+limits:
+  # Rolling 24h sum of accepted spends. Rejects do not count.
+  daily_cap_zatoshis: 200000000
+  max_tx_zatoshis: 50000000
+  # Milestone 2. Empty allowlist means any unified address is allowed.
+  allowlist: []
+  # Milestone 2. Accepted spends per rolling hour.
+  max_spends_per_hour: 5
+
+privacy:
+  # score < reject_below -> reject
+  # score < warn_below   -> warn
+  # else                  -> accept
+  # Hard rule failures reject regardless of score.
+  reject_below: 60
+  warn_below: 75
+
+linter:
+  timing_lookback_ms: 600000
+  # A recent receive is "similar" when |receive - spend| / spend <= this.
+  amount_similarity: 0.20
+  # Amounts divisible by this are round. 1_000_000 zatoshis = 0.01 ZEC.
+  round_modulus_zatoshis: 1000000
+  # Also flag an amount that equals any note amount inside the lookback.
+  flag_exact_recent_amount: true
+  shield_lookback_ms: 600000
+  # Milestone 3. Change / input >= this fraction flags note selection.
+  change_fraction: 0.95

@@ -1,0 +1,26 @@
+[package]
+name = "zlint-cli"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "zlint"
+path = "src/main.rs"
+
+[dependencies]
+clap.workspace = true
+hex.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+zlint-linter.workspace = true
+zlint-policy.workspace = true
+zlint-store.workspace = true
+zlint-tx.workspace = true
+zlint-types.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
+zlint-types.workspace = true

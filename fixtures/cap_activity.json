@@ -1,0 +1,10 @@
+{
+  "receives": [],
+  "shields": [],
+  "accepted_spends": [
+    {
+      "amount_zatoshis": 80000000,
+      "at_ms": 1759996400000
+    }
+  ]
+}

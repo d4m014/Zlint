@@ -1,0 +1,16 @@
+{
+  "receives": [
+    {
+      "amount_zatoshis": 50000000,
+      "at_ms": 1760000000000,
+      "pool": "orchard"
+    }
+  ],
+  "shields": [
+    {
+      "amount_zatoshis": 20000000,
+      "at_ms": 1759999200000
+    }
+  ],
+  "accepted_spends": []
+}

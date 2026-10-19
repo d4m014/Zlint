@@ -1,0 +1,29 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/zlint-types",
+    "crates/zlint-policy",
+    "crates/zlint-linter",
+    "crates/zlint-store",
+    "crates/zlint-tx",
+    "crates/zlint-cli",
+]
+
+[workspace.package]
+edition = "2021"
+license = "MIT"
+rust-version = "1.88"
+
+[workspace.dependencies]
+clap = { version = "4", features = ["derive"] }
+hex = "0.4"
+rusqlite = { version = "0.32", features = ["bundled"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yaml = "0.9"
+sha2 = "0.10"
+zlint-linter = { path = "crates/zlint-linter" }
+zlint-policy = { path = "crates/zlint-policy" }
+zlint-store = { path = "crates/zlint-store" }
+zlint-types = { path = "crates/zlint-types" }
+zlint-tx = { path = "crates/zlint-tx" }

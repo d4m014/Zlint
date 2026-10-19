@@ -1,0 +1,20 @@
+# Demo policy. Matches docs/DEMO.md, not the looser product defaults.
+version: 1
+
+limits:
+  daily_cap_zatoshis: 100000000
+  max_tx_zatoshis: 50000000
+  allowlist: []
+  max_spends_per_hour: 5
+
+privacy:
+  reject_below: 70
+  warn_below: 85
+
+linter:
+  timing_lookback_ms: 600000
+  amount_similarity: 0.20
+  round_modulus_zatoshis: 1000000
+  flag_exact_recent_amount: true
+  shield_lookback_ms: 600000
+  change_fraction: 0.95

@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zlint.local/schemas/decision.schema.json",
+  "title": "Decision",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["verdict", "score", "flags", "hard_rule_failures"],
+  "properties": {
+    "verdict": {
+      "type": "string",
+      "enum": ["accept", "reject", "warn"]
+    },
+    "score": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100
+    },
+    "flags": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["code", "weight", "explanation"],
+        "properties": {
+          "code": {
+            "type": "string",
+            "enum": [
+              "timing_correlation",
+              "round_or_distinctive_amount",
+              "shield_after_receive",
+              "change_note_selection"
+            ]
+          },
+          "weight": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "explanation": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "hard_rule_failures": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["code", "explanation"],
+        "properties": {
+          "code": {
+            "type": "string",
+            "enum": ["daily_cap", "max_tx", "allowlist", "rate_limit"]
+          },
+          "explanation": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    }
+  }
+}

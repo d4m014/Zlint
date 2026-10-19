@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zlint.local/schemas/activity.schema.json",
+  "title": "Activity",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["receives", "shields", "accepted_spends"],
+  "properties": {
+    "receives": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["amount_zatoshis", "at_ms"],
+        "properties": {
+          "amount_zatoshis": { "type": "integer", "minimum": 1 },
+          "at_ms": { "type": "integer", "minimum": 0 },
+          "pool": {
+            "type": "string",
+            "enum": ["orchard", "sapling", "transparent"]
+          }
+        }
+      }
+    },
+    "shields": {
+      "type": "array",
+      "description": "Transparent-to-shielded events the linter can see.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["amount_zatoshis", "at_ms"],
+        "properties": {
+          "amount_zatoshis": { "type": "integer", "minimum": 1 },
+          "at_ms": { "type": "integer", "minimum": 0 }
+        }
+      }
+    },
+    "accepted_spends": {
+      "type": "array",
+      "description": "Prior accepts inside the daily-cap window. Rejects are omitted.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["amount_zatoshis", "at_ms"],
+        "properties": {
+          "amount_zatoshis": { "type": "integer", "minimum": 1 },
+          "at_ms": { "type": "integer", "minimum": 0 }
+        }
+      }
+    }
+  }
+}
