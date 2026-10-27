@@ -7,10 +7,20 @@ rust-version.workspace = true
 
 [dependencies]
 hex.workspace = true
-pczt = { version = "0.9.3", default-features = false, features = ["std", "orchard", "sapling"] }
+pasta_curves = "0.5"
+pczt = { version = "0.9.3", default-features = false, features = ["std", "orchard", "sapling", "signer", "io-finalizer"] }
 zlint-linter.workspace = true
 zlint-policy.workspace = true
 zlint-types.workspace = true
 
 [dev-dependencies]
-zcash_protocol = "0.10.4"
+incrementalmerkletree = "0.8"
+orchard = "0.15.5"
+pasta_curves = "0.5"
+rand = "0.8"
+shardtree = "0.7"
+zcash_note_encryption = "0.4"
+zcash_primitives = { version = "0.30", default-features = false, features = ["transparent-inputs"] }
+zcash_protocol = { version = "0.10.4", features = ["local-consensus"] }
+zlint-signer.workspace = true
+pczt = { version = "0.9.3", default-features = false, features = ["std", "orchard", "sapling", "signer", "io-finalizer", "zcp-builder"] }

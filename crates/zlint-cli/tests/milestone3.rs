@@ -135,6 +135,8 @@ fn mcp_propose_spend_matches_decide() {
         r#"{"jsonrpc":"2.0","method":"notifications/initialized"}"#,
         r#"{"jsonrpc":"2.0","id":2,"method":"tools/list"}"#,
         r#"{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"propose_spend","arguments":{"policy_path":"config/policy.example.yaml","activity_path":"fixtures/demo_activity.json","proposal_path":"fixtures/proposals/timing_reject.json"}}}"#,
+        r#"{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"cosign_pczt","arguments":{"pczt_path":"spend.pczt","proposed_at_ms":1}}}"#,
+        r#"{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"confirm","arguments":{}}}"#,
     ];
     for message in messages {
         writeln!(stdin, "{message}").unwrap();
@@ -148,10 +150,16 @@ fn mcp_propose_spend_matches_decide() {
         .filter(|line| !line.is_empty())
         .map(|line| serde_json::from_str(line).unwrap())
         .collect();
-    assert_eq!(lines.len(), 3);
+    assert_eq!(lines.len(), 5);
     assert_eq!(lines[0]["result"]["serverInfo"]["name"], "zlint");
     assert_eq!(lines[0]["result"]["protocolVersion"], "2024-11-05");
-    assert_eq!(lines[1]["result"]["tools"][0]["name"], "propose_spend");
+    let names: Vec<&str> = lines[1]["result"]["tools"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|tool| tool["name"].as_str().unwrap())
+        .collect();
+    assert_eq!(names, ["propose_spend", "review_pczt"]);
     assert_eq!(lines[2]["result"]["isError"], false);
     let text = lines[2]["result"]["content"][0]["text"].as_str().unwrap();
     let decision: Value = serde_json::from_str(text).unwrap();
@@ -160,4 +168,12 @@ fn mcp_propose_spend_matches_decide() {
     assert_eq!(decision["flags"][0]["code"], "timing_correlation");
     assert_eq!(decision["flags"][1]["code"], "round_or_distinctive_amount");
     assert!(decision.get("signer").is_none());
+    assert!(decision.get("signature_share").is_none());
+    let cosign_err = lines[3]["error"]["message"].as_str().unwrap();
+    assert!(cosign_err.contains("cosign_pczt"), "{cosign_err}");
+    assert_eq!(lines[4]["result"]["isError"], true);
+    assert!(lines[4]["result"]["content"][0]["text"]
+        .as_str()
+        .unwrap()
+        .contains("confirm"));
 }

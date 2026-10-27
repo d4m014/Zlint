@@ -1,13 +1,71 @@
 //! Read a partially built Zcash transaction and run the spend check on it.
 //!
 //! A wallet or an agent passes the PCZT bytes. Zlint reads shielded outputs that still
-//! show an address and an amount. It does not scan the chain and it does not sign.
+//! show an address and an amount. It does not scan the chain, build a proof, or broadcast.
+//! `apply_orchard_spend_auth` stores one Orchard spend authorization signature after the
+//! PCZT signer role has checked it against the action's randomized key.
 
 use std::collections::BTreeMap;
+use std::convert::Infallible;
 
+use pasta_curves::group::ff::PrimeField;
+use pasta_curves::pallas;
+use pczt::roles::signer::Signer;
+use pczt::roles::verifier::Verifier;
 use pczt::Pczt;
 use zlint_policy::Policy;
 use zlint_types::{Activity, Decision, SpendProposal};
+
+/// One Orchard action that can take a spend authorization signature.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OrchardActionAuth {
+    pub index: usize,
+    pub alpha: [u8; 32],
+    pub rk: [u8; 32],
+}
+
+/// Shielded sighash and the Orchard actions that carry a randomizer.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OrchardSighash {
+    pub sighash: [u8; 32],
+    pub actions: Vec<OrchardActionAuth>,
+}
+
+/// Read the shielded sighash and each Orchard spend randomizer.
+/// An action with no randomizer is skipped. This does not prove or sign.
+pub fn orchard_sighash(pczt_bytes: &[u8]) -> Result<OrchardSighash, String> {
+    let pczt =
+        Pczt::parse(pczt_bytes).map_err(|e| format!("could not read the transaction: {e}"))?;
+    let sighash = Signer::new(pczt.clone())
+        .map_err(|e| format!("could not prepare the signature: {e:?}"))?
+        .shielded_sighash();
+    let mut actions = Vec::new();
+    Verifier::new(pczt)
+        .with_orchard::<Infallible, _>(|bundle| {
+            for (index, action) in bundle.actions().iter().enumerate() {
+                let spend = action.spend();
+                let Some(alpha) = spend.alpha().as_ref() else {
+                    continue;
+                };
+                actions.push(OrchardActionAuth {
+                    index,
+                    alpha: scalar_bytes(*alpha),
+                    rk: spend.rk().clone().into(),
+                });
+            }
+            Ok(())
+        })
+        .map_err(|e| format!("could not read an orchard action: {e:?}"))?;
+    Ok(OrchardSighash { sighash, actions })
+}
+
+fn scalar_bytes(scalar: pallas::Scalar) -> [u8; 32] {
+    let repr = scalar.to_repr();
+    let bytes: &[u8] = repr.as_ref();
+    let mut out = [0u8; 32];
+    out.copy_from_slice(bytes);
+    out
+}
 
 /// One shielded payment found in the transaction, plus change that has an amount but no address.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -43,6 +101,29 @@ pub fn review_pczt(
     proposal.validate()?;
     let decision = zlint_linter::decide(policy, activity, &proposal);
     Ok(Review { payment, decision })
+}
+
+/// Store a 64-byte Orchard spend authorization signature on one action.
+///
+/// The PCZT signer role verifies it against that action's randomized key and the
+/// shielded sighash. A lone FROST share is not this signature. This does not build
+/// a proof and it does not broadcast.
+pub fn apply_orchard_spend_auth(
+    pczt_bytes: &[u8],
+    action_index: usize,
+    signature: [u8; 64],
+) -> Result<Vec<u8>, String> {
+    let pczt =
+        Pczt::parse(pczt_bytes).map_err(|e| format!("could not read the transaction: {e}"))?;
+    let mut signer = pczt::roles::signer::Signer::new(pczt)
+        .map_err(|e| format!("could not prepare the signature: {e:?}"))?;
+    signer
+        .apply_orchard_signature(action_index, signature.into())
+        .map_err(|e| format!("signature was rejected: {e:?}"))?;
+    signer
+        .finish()
+        .serialize()
+        .map_err(|e| format!("could not write the transaction: {e:?}"))
 }
 
 pub fn shielded_payment(pczt_bytes: &[u8]) -> Result<ShieldedPayment, String> {
