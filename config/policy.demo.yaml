@@ -1,4 +1,4 @@
-# Demo policy. Matches docs/DEMO.md, not the looser product defaults.
+# Demo policy. Tighter than config/policy.example.yaml.
 version: 1
 
 limits:
