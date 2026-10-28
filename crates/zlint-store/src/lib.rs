@@ -1,5 +1,6 @@
-//! Local decision log and accepted-spend history.
-//! The daily cap and the rate limit count rows in `accepted_spends`. Rejects and warnings stay in `decisions` only.
+//! Local decision log, accepted-spend history, and warnings waiting for a person.
+//! The daily cap and the rate limit count rows in `accepted_spends`.
+//! A warning stays out of that table until a signature share is contributed.
 
 use rusqlite::{params, Connection};
 use std::path::Path;
@@ -14,6 +15,13 @@ pub struct LoggedDecision {
     pub flags_json: String,
     pub proposed_at_ms: u64,
     pub recorded_at_ms: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PendingWarn {
+    pub proposal_hash: String,
+    pub amount_zatoshis: u64,
+    pub proposed_at_ms: u64,
 }
 
 pub struct Store {
@@ -39,6 +47,18 @@ impl Store {
                 proposal_hash TEXT NOT NULL UNIQUE,
                 amount_zatoshis INTEGER NOT NULL,
                 at_ms INTEGER NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS pending_warnings (
+                proposal_hash TEXT PRIMARY KEY,
+                amount_zatoshis INTEGER NOT NULL,
+                proposed_at_ms INTEGER NOT NULL,
+                recorded_at_ms INTEGER NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS confirmed_warnings (
+                proposal_hash TEXT PRIMARY KEY,
+                amount_zatoshis INTEGER NOT NULL,
+                proposed_at_ms INTEGER NOT NULL,
+                recorded_at_ms INTEGER NOT NULL
             );
             ",
         )
@@ -131,6 +151,118 @@ impl Store {
             .map_err(|e| e.to_string())
     }
 
+    pub fn record_pending(
+        &self,
+        proposal_hash: &str,
+        amount_zatoshis: u64,
+        proposed_at_ms: u64,
+    ) -> Result<(), String> {
+        self.conn
+            .execute(
+                "INSERT INTO pending_warnings
+                    (proposal_hash, amount_zatoshis, proposed_at_ms, recorded_at_ms)
+                 VALUES (?1, ?2, ?3, ?4)
+                 ON CONFLICT(proposal_hash) DO UPDATE SET
+                    amount_zatoshis = excluded.amount_zatoshis,
+                    proposed_at_ms = excluded.proposed_at_ms,
+                    recorded_at_ms = excluded.recorded_at_ms",
+                params![
+                    proposal_hash,
+                    i64_ms(amount_zatoshis)?,
+                    i64_ms(proposed_at_ms)?,
+                    i64_ms(now_ms())?,
+                ],
+            )
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    pub fn pending(&self, proposal_hash: &str) -> Result<Option<PendingWarn>, String> {
+        let row = self.conn.query_row(
+            "SELECT proposal_hash, amount_zatoshis, proposed_at_ms
+                 FROM pending_warnings WHERE proposal_hash = ?1",
+            params![proposal_hash],
+            |row| {
+                Ok(PendingWarn {
+                    proposal_hash: row.get(0)?,
+                    amount_zatoshis: u64_ms(row.get(1)?)?,
+                    proposed_at_ms: u64_ms(row.get(2)?)?,
+                })
+            },
+        );
+        match row {
+            Ok(pending) => Ok(Some(pending)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(err) => Err(err.to_string()),
+        }
+    }
+
+    pub fn record_confirmed(
+        &self,
+        proposal_hash: &str,
+        amount_zatoshis: u64,
+        proposed_at_ms: u64,
+    ) -> Result<(), String> {
+        self.conn
+            .execute(
+                "INSERT INTO confirmed_warnings
+                    (proposal_hash, amount_zatoshis, proposed_at_ms, recorded_at_ms)
+                 VALUES (?1, ?2, ?3, ?4)
+                 ON CONFLICT(proposal_hash) DO UPDATE SET
+                    amount_zatoshis = excluded.amount_zatoshis,
+                    proposed_at_ms = excluded.proposed_at_ms,
+                    recorded_at_ms = excluded.recorded_at_ms",
+                params![
+                    proposal_hash,
+                    i64_ms(amount_zatoshis)?,
+                    i64_ms(proposed_at_ms)?,
+                    i64_ms(now_ms())?,
+                ],
+            )
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    pub fn confirmed(&self, proposal_hash: &str) -> Result<Option<PendingWarn>, String> {
+        let row = self.conn.query_row(
+            "SELECT proposal_hash, amount_zatoshis, proposed_at_ms
+                 FROM confirmed_warnings WHERE proposal_hash = ?1",
+            params![proposal_hash],
+            |row| {
+                Ok(PendingWarn {
+                    proposal_hash: row.get(0)?,
+                    amount_zatoshis: u64_ms(row.get(1)?)?,
+                    proposed_at_ms: u64_ms(row.get(2)?)?,
+                })
+            },
+        );
+        match row {
+            Ok(confirmed) => Ok(Some(confirmed)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(err) => Err(err.to_string()),
+        }
+    }
+
+    pub fn remove_confirmed(&self, proposal_hash: &str) -> Result<(), String> {
+        self.conn
+            .execute(
+                "DELETE FROM confirmed_warnings WHERE proposal_hash = ?1",
+                params![proposal_hash],
+            )
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    pub fn remove_pending(&self, proposal_hash: &str) -> Result<(), String> {
+        self.conn
+            .execute(
+                "DELETE FROM pending_warnings WHERE proposal_hash = ?1",
+                params![proposal_hash],
+            )
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
     pub fn accepted_spends(&self) -> Result<Vec<AcceptedSpend>, String> {
         let mut stmt = self
             .conn
@@ -203,6 +335,29 @@ mod tests {
         assert!(!store.has_accepted("reject-hash").unwrap());
         let again = store.record_accept("accept-hash", 5, 20);
         assert!(again.is_err());
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn a_pending_warning_is_replaced_and_then_removed() {
+        let path = std::env::temp_dir().join(format!("zlint-pending-{}.db", std::process::id()));
+        let _ = std::fs::remove_file(&path);
+        let store = Store::open(&path).unwrap();
+        store.record_pending("warn-hash", 10, 30).unwrap();
+        store.record_pending("warn-hash", 11, 31).unwrap();
+        let pending = store.pending("warn-hash").unwrap().unwrap();
+        assert_eq!(pending.amount_zatoshis, 11);
+        assert_eq!(pending.proposed_at_ms, 31);
+        assert!(store.pending("missing").unwrap().is_none());
+        store.remove_pending("warn-hash").unwrap();
+        assert!(store.pending("warn-hash").unwrap().is_none());
+        store.record_confirmed("warn-hash", 11, 31).unwrap();
+        store.record_confirmed("warn-hash", 12, 32).unwrap();
+        let confirmed = store.confirmed("warn-hash").unwrap().unwrap();
+        assert_eq!(confirmed.amount_zatoshis, 12);
+        assert_eq!(confirmed.proposed_at_ms, 32);
+        store.remove_confirmed("warn-hash").unwrap();
+        assert!(store.confirmed("warn-hash").unwrap().is_none());
         let _ = std::fs::remove_file(&path);
     }
 }
