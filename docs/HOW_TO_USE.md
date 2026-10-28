@@ -180,7 +180,3 @@ A warning means the spend is inside the hard limits and the privacy score landed
 On the FROST path, `zlint confirm` records the confirmation and does not return a signature share. The agent's next round produces share 2. The agent cannot be the one who confirms. If it could, a warning would be an accept with an extra step. Confirm is not a socket method and not an MCP tool. It runs only as `zlint confirm` on the machine that holds share 2.
 
 A simulated share is the exception. On that path `zlint confirm` returns the dummy share itself. That string is not a Zcash signature.
-
-## Limits
-
-Advice does not stop a spend. A caller with the full spend key can ignore a no. Enforce stops the agent that needs share 2, and freezes the spend when that process is down. Nothing on chain enforces the policy. The score is local arithmetic, not an anonymity-set proof. Full wording is in [TRUST_MODEL.md](TRUST_MODEL.md).
